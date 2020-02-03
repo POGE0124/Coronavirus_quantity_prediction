@@ -1,0 +1,96 @@
+import urllib.request
+import json
+from pandas.io.json import json_normalize
+import matplotlib.pyplot as plt
+import pandas as pd
+from scipy.optimize import curve_fit
+import numpy as np
+
+
+def get_data(url):
+    resp = urllib.request.urlopen(url)
+    ele_json = json.loads(resp.read())
+    with open("a.json", 'w', encoding='utf-8') as json_file:
+        json.dump(ele_json, json_file, indent=4, ensure_ascii=False)
+    return ele_json
+
+
+def plot_data(df_data):
+    plt.figure()
+    plt.rcParams['font.sans-serif'] = ['SimHei']
+    plt.rcParams['axes.unicode_minus'] = False
+    plt.subplot(1, 2, 1)
+    plt.title("全国冠状病毒疫情趋势(一)", fontsize=20)
+    df_data["date"] = pd.to_datetime(df_data["date"])
+    df_data.set_index('date', inplace=True)
+    df_data['confirmedNum'].plot()
+    df_data['suspectedNum'].plot()
+    plt.legend(["确诊", "疑似"], loc="lower right", fontsize=18)
+    for a, b in zip(df_data.index, df_data['confirmedNum']):
+        plt.text(a, b, '%d' % b, ha='center', va='bottom', fontsize=12)
+    for a, b in zip(df_data.index, df_data['suspectedNum']):
+        plt.text(a, b, '%d' % b, ha='center', va='bottom', fontsize=12)
+    plt.ylabel("数量", fontsize=18)  # 设置纵轴单位
+    plt.xlabel("时间", fontsize=18)  # 设置横轴单位
+    plt.subplot(1, 2, 2)
+    plt.title("全国冠状病毒疫情趋势(二)", fontsize=20)
+    df_data['curesNum'].plot()
+    df_data['deathsNum'].plot()
+    plt.legend(["治愈", "死亡"], loc="lower right", fontsize=18)
+    for a, b in zip(df_data.index, df_data['curesNum']):
+        plt.text(a, b, '%d' % b, ha='center', va='bottom', fontsize=12)
+    for a, b in zip(df_data.index, df_data['deathsNum']):
+        plt.text(a, b, '%d' % b, ha='center', va='bottom', fontsize=12)
+    plt.ylabel("数量", fontsize=18)  # 设置纵轴单位
+    plt.xlabel("时间", fontsize=18)  # 设置横轴单位
+    plt.show()
+
+
+# 自定义函数 e指数形式
+def func(x, a, b, c):
+    return a * np.sqrt(x) * (b * np.square(x) + c)
+
+
+# 拟合数据
+def fit_data(df_data):
+    # 定义x、y散点坐标
+    x = range(len(df_data))
+    x = np.array(x)
+    print('xxxxxx', x)
+    num = df_data["confirmedNum"].to_list()
+    y = np.array(num)
+    # 非线性最小二乘法拟合
+    popt, pcov = curve_fit(func, x, y)
+    # 获取popt里面是拟合系数
+    print(popt)
+    a = popt[0]
+    b = popt[1]
+    c = popt[2]
+    yvals = func(x, a, b, c)  # 拟合y值
+    print('popt:', popt)
+    print('系数a:', a)
+    print('系数b:', b)
+    print('系数c:', c)
+    print('系数pcov:', pcov)
+    print('系数yvals:', yvals)
+    # 绘图
+    plt.plot(x, y, 's', label='原始数据')
+    plt.plot(x, yvals, 'r', label='拟合数据')
+    plt.xlabel('时间')
+    plt.ylabel('数量')
+    plt.legend(loc=4)  # 指定legend的位置右下角
+    plt.title('非线形最小二乘法拟合')
+    x_next = len(df_data) + 1
+    y_next = func(x_next, a, b, c)
+    print("预计明天全国总确诊人数:%d" % y_next)
+    plt.show()
+
+
+if __name__ == '__main__':
+    test_json = get_data('https://www.tianqiapi.com/api?version=epidemic&appid=23035354&appsecret=8YvlPNrz')
+    history_json = test_json["data"]["history"]
+    data = json_normalize(history_json)
+    data.sort_index(ascending=False, inplace=True)
+    data.reset_index(drop=True, inplace=True)
+    plot_data(data)
+    fit_data(data)
